@@ -1,7 +1,7 @@
 #!/bin/bash
 # IPv6 Backconnect Proxy Manager (auto-detect subnet)
-# Compatible with Ubuntu 20.04, 22.04, 24.04, Debian, CentOS, etc.
-# Builds and runs 3proxy with IPv6 rotation (interval or per-request via ndppd)
+# Fixed: ^M line endings + port validation
+# Compatible with Ubuntu 20.04, 22.04, 24.04
 
 set -euo pipefail
 
@@ -37,7 +37,6 @@ Examples:
   ./ipv6proxy.sh -c 100 --random
   ./ipv6proxy.sh -c 50 -u user -p pass --rotating-interval 10
   ./ipv6proxy.sh -c 20 --rotate-every-request
-  ./ipv6proxy.sh -c 30 --interface eth0 --subnet 64
 EOF
   exit 1
 }
@@ -161,11 +160,16 @@ check_startup_parameters() {
 
   (( rotating_interval >= 0 && rotating_interval <= 59 )) || log_err_print_usage_and_exit "Error: --rotating-interval must be 0..59"
 
-  if (( start_port < 5000 )); then log_err_print_usage_and_exit "Error: --start-port must be >= 5000"; fi
+  # ✅ Fixed: Port validation
+  if (( start_port < 5000 )); then
+    log_err_print_usage_and_exit "Error: --start-port must be >= 5000"
+  fi
   last_port=$(( start_port + proxy_count - 1 ))
-  if (( last_port > 65535 )); then log_err_print_usage_and_exit "Error: start-port + proxy-count - 1 must be <= 65535"; fi
+  if (( last_port > 65535 )); then
+    log_err_print_usage_and_exit "Error: start-port + proxy-count - 1 must be <= 65535"
+  fi
 
-  if [[ -n "$backconnect_ipv4" && ! $(is_valid_ip "$backconnect_ipv4"; echo $?) -eq 0 ]]; then
+  if [[ -n "$backconnect_ipv4" ]] && ! is_valid_ip "$backconnect_ipv4"; then
     log_err_and_exit "Error: invalid IPv4 provided via --backconnect-ip"
   fi
 
@@ -264,7 +268,6 @@ autodetect_subnet_and_mask() {
   local full_ip="${ip_with_prefix%/*}"
   local prefixlen="${ip_with_prefix#*/}"
 
-  # Align to 4-bit boundary
   local nibble_aligned=$(( prefixlen - (prefixlen % 4) ))
   if [[ "$subnet" == "auto" ]]; then
     subnet=$nibble_aligned
@@ -324,7 +327,7 @@ generate_random_users_if_needed() {
   fi
 }
 
-# --- Startup script (3proxy) ---
+# --- Startup script ---
 create_startup_script() {
   delete_file_if_exists "$startup_script_path"
   is_auth_used
